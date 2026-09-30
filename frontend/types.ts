@@ -1,96 +1,93 @@
-export interface NovelSettings {
+export interface WorldbuildingState {
   title: string;
   tags: string[];
-  genre: string;
-  maleLead: string;
-  femaleLead: string;
-  supportingChars: string;
-  writingStyle: string; // 문체
-  storyPov: string; // 사건 시점
-  narrativeTense: string; // 작성 시점
-  targetAudience: string; // 타깃 독자층
-  synopsis: string;
+  maleLead: {
+    name: string;
+    age: string;
+    role: string;
+    personality: string;
+    appearance: string;
+    hiddenTrait: string;
+  };
+  femaleLead: {
+    name: string;
+    age: string;
+    role: string;
+    personality: string;
+    appearance: string;
+    secretDesire: string;
+  };
+  supportingCast: string;
+  toneStyle: string;
+  pov: string;
+  tense: string;
+  targetAudience: string;
+  primaryTropes: string[];
 }
 
-export interface Episode {
+export interface EpisodeCard {
   id: string;
-  stageId: number; // 1 ~ 12 (영웅의 여정)
-  stageTitle: string;
-  epNumber: number;
+  stageNumber: number; // 1 to 12
+  subNumber: number;
   title: string;
-  summary: string;
-  keyEvents: string[];
-  conflict: string;
-  content: string; // 집필된 원문 (Step 3)
+  outline: string;
+  keyConflict: string;
+  climaxPoint: string;
 }
 
-export interface HeroStageTemplate {
-  stageId: number;
-  name: string;
-  englishName: string;
-  description: string;
-  defaultEpisodeHint: string;
+export type VolumeLevel = '100%' | '125%' | '150%' | '175%' | '200%';
+export type SensualLevel = '100%' | '125%' | '150%' | '175%' | '200%';
+
+export interface ChapterDraft {
+  episodeId: string;
+  episodeTitle: string;
+  volume: VolumeLevel;
+  sensualIntensity: SensualLevel;
+  content: string;
+  lastUpdated: string;
 }
 
-export type PlatformStyle = '더쿠' | '아카라이브' | '노벨피아' | '리디북스' | '디시인사이드' | '조아라';
+export type PlatformType = 'Theqoo' | 'ArcaLive' | 'Novelpia' | 'RidiBooks';
 
 export interface CommenterPersona {
   id: string;
   name: string;
-  platform: PlatformStyle;
+  platform: PlatformType;
   age: string;
   gender: string;
   personality: string;
-  toneStyle: string;
-  favoriteGenre: string;
-  avatarColor: string;
+  commentTone: string;
+  avatarSeed: string;
 }
 
 export interface EpisodeComment {
   id: string;
   episodeId: string;
   personaId: string;
-  personaName: string;
-  platform: PlatformStyle;
+  authorName: string;
+  platform: PlatformType;
   content: string;
-  likes: number;
-  dislikes: number;
-  createdAt: string;
-  reactionTag?: string;
-}
-
-export type ActionType = 
-  | 'update_settings'      // 1단계 설정 반영
-  | 'add_episode'          // 2단계 에피소드 추가
-  | 'update_episode'        // 2단계 에피소드 수정
-  | 'replace_content'      // 3단계 본문 교체
-  | 'append_content'       // 3단계 본문 이어쓰기
-  | 'add_persona'          // 5단계 페르소나 추가
-  | 'add_comment';         // 5단계 댓글 추가
-
-export interface ActionProposal {
-  id: string;
-  targetStep: number;
-  type: ActionType;
-  label: string;
-  summary: string;
-  payload: any;
-  applied?: boolean;
+  upvotes: number;
+  downvotes?: number;
+  timestamp: string;
+  rating?: number; // 1-5 for Ridi
+  isBest?: boolean;
 }
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
+  sender: 'user' | 'assistant';
+  text: string;
   timestamp: string;
-  proposal?: ActionProposal;
+  appliedAction?: string;
 }
 
-export interface ProjectFullData {
+export interface NovelProjectState {
   version: string;
-  exportedAt: string;
-  settings: NovelSettings;
-  episodes: Episode[];
+  savedAt: string;
+  worldbuilding: WorldbuildingState;
+  episodes: EpisodeCard[];
+  drafts: Record<string, ChapterDraft>;
   personas: CommenterPersona[];
   comments: EpisodeComment[];
 }

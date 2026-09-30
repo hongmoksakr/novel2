@@ -1,479 +1,311 @@
 import React, { useState, useEffect } from 'react';
-import { NovelSettings, Episode, CommenterPersona, EpisodeComment, ProjectFullData, ActionProposal } from './types';
-import { 
-  INITIAL_SETTINGS, 
-  INITIAL_PERSONAS, 
-  INITIAL_EPISODES 
-} from './constants';
-import { ChatPanel } from './components/ChatPanel';
-import { Step1Settings } from './components/Step1Settings';
-import { Step2Outline } from './components/Step2Outline';
-import { Step3Writing } from './components/Step3Writing';
-import { Step4Refine } from './components/Step4Refine';
+import { NovelProjectState, ChapterDraft, EpisodeCard, CommenterPersona, EpisodeComment } from './types';
+import { INITIAL_WORLDBUILDING, INITIAL_EPISODES, INITIAL_PERSONAS } from './constants';
+import { AuthModal } from './components/AuthModal';
+import { Header } from './components/Header';
+import { AiChatPanel } from './components/AiChatPanel';
+import { Step1Worldbuilding } from './components/Step1Worldbuilding';
+import { Step2Plotter } from './components/Step2Plotter';
+import { Step3Drafting } from './components/Step3Drafting';
+import { Step4Editor } from './components/Step4Editor';
 import { Step5Comments } from './components/Step5Comments';
 import { Step6Viewer } from './components/Step6Viewer';
-import { AuthLockScreen } from './components/AuthLockScreen';
-import { MarkdownSyncModal } from './components/MarkdownSyncModal';
-import { 
-  BookMarked, PenTool, GitBranch, FileEdit, 
-  Sparkles, MessageSquare, MonitorPlay, Save, 
-  CheckCircle, ChevronRight, Menu, X, FileText, 
-  LogOut, ShieldCheck 
-} from 'lucide-react';
+import { BookText, Compass, PenTool, Edit3, MessageCircle, Eye, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
-export default function App() {
-  // Authentication gate: Must login to enter
-  const [currentUser, setCurrentUser] = useState<string | null>(() => {
-    return sessionStorage.getItem('storyforge_auth_user') || null;
+const LOCAL_STORAGE_KEY = 'k_webnovel_studio_state_v1';
+
+export const App: React.FC = () => {
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem('knovel_auth') === 'authenticated';
   });
 
-  const [currentStep, setCurrentStep] = useState<number>(1);
-  const [isMobileChatOpen, setIsMobileChatOpen] = useState<boolean>(false);
-  const [isMarkdownModalOpen, setIsMarkdownModalOpen] = useState<boolean>(false);
-  const [saveStatus, setSaveStatus] = useState<string>('로컬 자동저장');
-
-  // Load from localStorage or use defaults
-  const [settings, setSettings] = useState<NovelSettings>(() => {
-    const saved = localStorage.getItem('storyforge_settings_v2');
-    return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
-  });
-
-  const [episodes, setEpisodes] = useState<Episode[]>(() => {
-    const saved = localStorage.getItem('storyforge_episodes_v2');
-    return saved ? JSON.parse(saved) : INITIAL_EPISODES;
-  });
-
-  const [personas, setPersonas] = useState<CommenterPersona[]>(() => {
-    const saved = localStorage.getItem('storyforge_personas_v2');
-    return saved ? JSON.parse(saved) : INITIAL_PERSONAS;
-  });
-
-  const [comments, setComments] = useState<EpisodeComment[]>(() => {
-    const saved = localStorage.getItem('storyforge_comments_v2');
-    if (saved) return JSON.parse(saved);
-
-    // Initial church mentor-mentee binge comments
-    return [
-      {
-        id: 'c-1',
-        episodeId: 'ep-1',
-        personaId: 'p-1',
-        personaName: '배덕감중독자',
-        platform: '리디북스',
-        content: '성가대 지휘석에서 입모양으로 [기.도.실.] 하는 거 미쳤냐고 ㅠㅠㅠ 서경 전도사 무릎 떨리는 묘사에서 심장 터짐',
-        likes: 38,
-        dislikes: 0,
-        createdAt: '1시간 전',
-        reactionTag: '텐션폭발'
-      },
-      {
-        id: 'c-2',
-        episodeId: 'ep-1',
-        personaId: 'p-2',
-        personaName: '교회다녀본사람',
-        platform: '더쿠',
-        content: '와 주일 3부 예배 축도 끝나고 나가는 그 성도들 바글바글한 공기 속에서 은밀하게 둘만 시선 교환하는 거 개현실적이라 더 배덕함;',
-        likes: 27,
-        dislikes: 1,
-        createdAt: '45분 전',
-        reactionTag: '과몰입'
-      },
-      {
-        id: 'c-3',
-        episodeId: 'ep-2',
-        personaId: 'p-3',
-        personaName: '강민우소유권주장',
-        platform: '노벨피아',
-        content: '1화에서 뜸들이더니 2화 오자마자 성경책 뺏고 무릎 꿇리기 + 뺨 찰싹 ㄷㄷㄷ 연하남 통제력 개살벌하네 ㅋㅋㅋㅋ',
-        likes: 45,
-        dislikes: 0,
-        createdAt: '30분 전',
-        reactionTag: '배덕감'
-      },
-      {
-        id: 'c-4',
-        episodeId: 'ep-2',
-        personaId: 'p-5',
-        personaName: '심야묵상',
-        platform: '조아라',
-        content: '종교적 죄의식과 메조히즘의 쾌락을 오가는 여주의 내면 심리가 너무나 처연하고 아름답습니다. 작가님 필력에 경의를 표합니다.',
-        likes: 19,
-        dislikes: 0,
-        createdAt: '15분 전',
-        reactionTag: '분석'
+  // Main Project State
+  const [projectState, setProjectState] = useState<NovelProjectState>(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse local storage project', e);
       }
-    ];
+    }
+    return {
+      version: '1.2.0',
+      savedAt: new Date().toISOString(),
+      worldbuilding: INITIAL_WORLDBUILDING,
+      episodes: INITIAL_EPISODES,
+      drafts: {
+        'ep-1': {
+          episodeId: 'ep-1',
+          episodeTitle: '제1화: 성가대실의 닫힌 문',
+          volume: '100%',
+          sensualIntensity: '150%',
+          content: `비가 쏟아지는 수요일 저녁이었다.
+
+수요 예배가 끝난 뒤에도 성가대실엔 서유진 혼자 남아 있었다. 
+그녀는 건반 덮개를 닫지 못한 채, 성가대석 난간에 기댄 채 멍하니 빗소리를 듣고 있었다. 
+
+"집사님."
+
+등 뒤에서 낮고 차분한 목소리가 들려왔다.
+뒤를 돌아보지 않아도 알 수 있었다. 지난달 우리 교회로 부임한 청년부 사역자, 스물네 살의 강태하 전도사였다.
+
+"불이 켜져 있길래 와 봤습니다."
+
+그가 천천히 다가왔다. 검은 셔츠 소매를 단정하게 걷어 올린 팔목 위로 푸른 핏줄이 서늘하게 돋아 있었다. 유진보다 여덟 살이나 어렸지만, 그의 앞에만 서면 유진은 늘 숨이 턱 끝까지 막혀왔다.
+
+"아, 태하 전도사님... 악보 정리가 덜 끝나서요."
+
+"거짓말을 하시는군요."
+
+태하는 건반 앞에 멈춰 서서 유진을 내려다보았다. 그의 깊고 어두운 눈동자가 그녀의 떨리는 입술과 가녀린 목덜미를 찬찬히 훑어 내렸다.
+
+"기도를 드리러 온 것도 아니고, 악보를 보는 것도 아니었습니다. 그저... 누군가 이곳에 들어와 문을 잠가주길 기다리신 표정이었는데요."
+
+유진의 심장이 덜컥 내려앉았다. 그의 손끝이 악보를 짚는 척하며 유진의 손가락등을 은근하게 스쳐 지나갔다. 차가우면서도 소름 끼치도록 뜨거운 전율이 척추를 타고 번져나갔다.`,
+          lastUpdated: new Date().toLocaleTimeString(),
+        },
+      },
+      personas: INITIAL_PERSONAS,
+      comments: [
+        {
+          id: 'c-init-1',
+          episodeId: 'ep-1',
+          personaId: 'p-1',
+          authorName: '새벽기도3년차',
+          platform: 'Theqoo',
+          content: '와 첫 화부터 텐션 무슨 일이야 ㅠㅠㅠㅠ 연하 전도사 말투 개치명적임 진짜 심장 터질뻔함;;',
+          upvotes: 84,
+          timestamp: '1시간 전',
+          isBest: true,
+        },
+        {
+          id: 'c-init-2',
+          episodeId: 'ep-1',
+          personaId: 'p-2',
+          authorName: '성경책던진놈',
+          platform: 'ArcaLive',
+          content: '성가대실에서 단둘이 비 내리는 날에 ㅋㅋㅋ 클리셰지만 도파민 GOAT 인정함 개추 박음',
+          upvotes: 42,
+          timestamp: '45분 전',
+        },
+      ],
+    };
   });
 
-  // Auto-save to localStorage
+  const [activeStep, setActiveStep] = useState<number>(1);
+  const [activeDraftEpisodeId, setActiveDraftEpisodeId] = useState<string>('ep-1');
+  const [savedNotification, setSavedNotification] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
+  // Sync to local storage on mutation
   useEffect(() => {
-    localStorage.setItem('storyforge_settings_v2', JSON.stringify(settings));
-    localStorage.setItem('storyforge_episodes_v2', JSON.stringify(episodes));
-    localStorage.setItem('storyforge_personas_v2', JSON.stringify(personas));
-    localStorage.setItem('storyforge_comments_v2', JSON.stringify(comments));
-    setSaveStatus('저장됨');
-    const timer = setTimeout(() => setSaveStatus('로컬 자동저장'), 1500);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projectState));
+    setSavedNotification(true);
+    const timer = setTimeout(() => setSavedNotification(false), 2500);
     return () => clearTimeout(timer);
-  }, [settings, episodes, personas, comments]);
+  }, [projectState]);
+
+  // Handle AI dynamic state action
+  const handleAiAction = (actionType: string, payload: any) => {
+    if (actionType === 'UPDATE_WORLDBUILDING') {
+      const { field, value } = payload;
+      setProjectState((prev) => ({
+        ...prev,
+        worldbuilding: {
+          ...prev.worldbuilding,
+          [field]: value,
+        },
+      }));
+    } else if (actionType === 'ADD_EPISODE') {
+      const newEp: EpisodeCard = {
+        id: `ep-${Date.now()}`,
+        stageNumber: payload.stageNumber || 2,
+        subNumber: projectState.episodes.length + 1,
+        title: payload.title || '새 에피소드',
+        outline: payload.outline || '',
+        keyConflict: payload.keyConflict || '',
+        climaxPoint: payload.climaxPoint || '',
+      };
+      setProjectState((prev) => ({
+        ...prev,
+        episodes: [...prev.episodes, newEp],
+      }));
+    }
+  };
 
   const handleLogout = () => {
-    if (confirm('스튜디오에서 로그아웃하시겠습니까? (작업 중인 내용은 안전하게 자동 저장되어 있습니다.)')) {
-      sessionStorage.removeItem('storyforge_auth_user');
-      setCurrentUser(null);
-    }
+    sessionStorage.removeItem('knovel_auth');
+    setIsAuthenticated(false);
   };
 
-  const handleImportMarkdownData = (data: ProjectFullData) => {
-    setSettings(data.settings);
-    setEpisodes(data.episodes);
-    setPersonas(data.personas);
-    setComments(data.comments);
-    setIsMarkdownModalOpen(false);
-    alert(`[${data.settings.title}] 원고를 성공적으로 불러왔습니다! 이어서 집필을 시작하세요.`);
-  };
-
-  // Direct application of Action Proposal from Chat
-  const handleApplyActionProposal = (proposal: ActionProposal) => {
-    switch (proposal.type) {
-      case 'update_settings': {
-        const payload = { ...proposal.payload };
-        // Defensively sanitize object values to strings so that textareas and string functions don't crash
-        const stringFields = ['title', 'genre', 'maleLead', 'femaleLead', 'supportingChars', 'writingStyle', 'storyPov', 'narrativeTense', 'targetAudience', 'synopsis'];
-        stringFields.forEach(field => {
-          if (payload[field] && typeof payload[field] === 'object' && !Array.isArray(payload[field])) {
-            try {
-              payload[field] = Object.entries(payload[field])
-                .map(([k, v]) => `${k}: ${v}`)
-                .join(', ');
-            } catch {
-              payload[field] = JSON.stringify(payload[field]);
-            }
-          }
-        });
-
-        setSettings(prev => ({
-          ...prev,
-          ...payload
-        }));
-        // Switch to Step 1 so the user immediately sees the change
-        setCurrentStep(1);
-        break;
-      }
-
-      case 'add_episode': {
-        const payload = proposal.payload;
-        const newEp: Episode = {
-          id: `ep-${Date.now()}`,
-          stageId: typeof payload.stageId === 'number' ? payload.stageId : 1,
-          stageTitle: typeof payload.stageTitle === 'string' ? payload.stageTitle : '새로운 단계',
-          epNumber: episodes.length + 1,
-          title: typeof payload.title === 'string' ? payload.title : `제${episodes.length + 1}화. 새로운 전개`,
-          summary: typeof payload.summary === 'string' ? payload.summary : '',
-          keyEvents: Array.isArray(payload.keyEvents) ? payload.keyEvents : ['사건 1', '사건 2'],
-          conflict: typeof payload.conflict === 'string' ? payload.conflict : '',
-          content: typeof payload.content === 'string' ? payload.content : ''
-        };
-        setEpisodes(prev => [...prev, newEp]);
-        // Switch to Step 2 to view outline
-        setCurrentStep(2);
-        break;
-      }
-
-      case 'update_episode': {
-        const payload = proposal.payload;
-        setEpisodes(prev =>
-          prev.map(ep => {
-            if (payload.id && ep.id === payload.id) {
-              return { ...ep, ...payload };
-            }
-            return ep;
-          })
-        );
-        setCurrentStep(2);
-        break;
-      }
-
-      case 'replace_content': {
-        const newContent = typeof proposal.payload?.content === 'string' 
-          ? proposal.payload.content 
-          : JSON.stringify(proposal.payload?.content || '');
-        // Apply to current active or first episode
-        setEpisodes(prev => {
-          if (prev.length === 0) return prev;
-          const updated = [...prev];
-          updated[0] = { ...updated[0], content: newContent };
-          return updated;
-        });
-        setCurrentStep(3);
-        break;
-      }
-
-      case 'append_content': {
-        const appendText = typeof proposal.payload?.content === 'string' 
-          ? proposal.payload.content 
-          : JSON.stringify(proposal.payload?.content || '');
-        setEpisodes(prev => {
-          if (prev.length === 0) return prev;
-          const updated = [...prev];
-          updated[0] = { 
-            ...updated[0], 
-            content: (updated[0].content ? updated[0].content + '\n\n' : '') + appendText 
-          };
-          return updated;
-        });
-        setCurrentStep(3);
-        break;
-      }
-
-      case 'add_persona': {
-        const payload = proposal.payload;
-        const newPersona: CommenterPersona = {
-          id: `p-${Date.now()}`,
-          name: typeof payload.name === 'string' ? payload.name : '새독자',
-          platform: payload.platform || '노벨피아',
-          age: typeof payload.age === 'string' ? payload.age : '20대',
-          gender: typeof payload.gender === 'string' ? payload.gender : '여성',
-          personality: typeof payload.personality === 'string' ? payload.personality : '',
-          toneStyle: typeof payload.toneStyle === 'string' ? payload.toneStyle : '',
-          favoriteGenre: typeof payload.favoriteGenre === 'string' ? payload.favoriteGenre : '로맨스',
-          avatarColor: payload.avatarColor || 'bg-indigo-600'
-        };
-        setPersonas(prev => [...prev, newPersona]);
-        setCurrentStep(5);
-        break;
-      }
-
-      case 'add_comment': {
-        const payload = proposal.payload;
-        const targetEpId = episodes[0]?.id || 'ep-1';
-        const newComment: EpisodeComment = {
-          id: `c-${Date.now()}`,
-          episodeId: payload.episodeId || targetEpId,
-          personaId: payload.personaId || 'chat-persona',
-          personaName: typeof payload.personaName === 'string' ? payload.personaName : '독자',
-          platform: payload.platform || '노벨피아',
-          content: typeof payload.content === 'string' ? payload.content : '',
-          likes: payload.likes || 1,
-          dislikes: 0,
-          createdAt: '방금 전',
-          reactionTag: payload.reactionTag || '과몰입'
-        };
-        setComments(prev => [newComment, ...prev]);
-        setCurrentStep(5);
-        break;
-      }
-
-      default:
-        console.warn('Unknown proposal type:', proposal.type);
-    }
-  };
-
-  // If user is not authenticated, render Login Lock Screen
-  if (!currentUser) {
-    return <AuthLockScreen onLoginSuccess={(userId) => setCurrentUser(userId)} />;
-  }
-
-  const stepsList = [
-    { num: 1, label: '1단계: 설정 기획', icon: BookMarked },
-    { num: 2, label: '2단계: 12단계 플롯', icon: GitBranch },
-    { num: 3, label: '3단계: 본문 집필', icon: PenTool },
-    { num: 4, label: '4단계: AI 부분 퇴고', icon: FileEdit },
-    { num: 5, label: '5단계: 독자 댓글 생성', icon: MessageSquare },
-    { num: 6, label: '6단계: 웹 뷰어 시연', icon: MonitorPlay },
+  const steps = [
+    { num: 1, title: 'Step 1: 메타 & 세계관', icon: BookText },
+    { num: 2, title: 'Step 2: 영웅의 여정 플롯', icon: Compass },
+    { num: 3, title: 'Step 3: 본문 집필/수위 조절', icon: PenTool },
+    { num: 4, title: 'Step 4: AI 선택 수정', icon: Edit3 },
+    { num: 5, title: 'Step 5: 독자 댓글 시뮬레이션', icon: MessageCircle },
+    { num: 6, title: 'Step 6: 웹소설 뷰어', icon: Eye },
   ];
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
-      {/* LEFT SIDE: AI Chat Assistant with Direct Step Action Proposals */}
-      <div
-        className={`fixed inset-y-0 left-0 z-40 w-80 md:w-96 lg:w-[410px] transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
-          isMobileChatOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <ChatPanel
-          currentStep={currentStep}
-          settings={settings}
-          episodes={episodes}
-          personas={personas}
-          onApplyActionProposal={handleApplyActionProposal}
-          onNavigateStep={(step) => setCurrentStep(step)}
-        />
-      </div>
+    <div className="min-h-screen flex flex-col bg-zinc-950 text-zinc-100 font-sans selection:bg-violet-600 selection:text-white">
+      {/* 0. Authentication Gate Lock Modal */}
+      {!isAuthenticated && <AuthModal onSuccess={() => setIsAuthenticated(true)} />}
 
-      {/* Mobile backdrop */}
-      {isMobileChatOpen && (
+      {/* Main Studio Viewport (Rendered behind or when authenticated) */}
+      <Header
+        projectState={projectState}
+        onImportState={(newState) => setProjectState(newState)}
+        onLogout={handleLogout}
+        savedNotification={savedNotification}
+      />
+
+      {/* Workspace Split-Pane Body */}
+      <div className="flex-1 flex overflow-hidden h-[calc(100vh-61px)]">
+        {/* Left Pane (AI Co-pilot Chatbot) - 30~35% width */}
         <div
-          onClick={() => setIsMobileChatOpen(false)}
-          className="fixed inset-0 bg-black/60 z-30 md:hidden"
-        />
-      )}
-
-      {/* RIGHT SIDE: Main 6-Step Workflow Canvas */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950">
-        {/* Top Navbar */}
-        <header className="h-14 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsMobileChatOpen(!isMobileChatOpen)}
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 md:hidden"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-brand-500 animate-pulse" />
-              <span className="font-extrabold text-sm tracking-tight text-white">StoryForge AI</span>
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">| 웹소설 창작 스튜디오</span>
-            </div>
-          </div>
-
-          {/* Step Breadcrumbs Indicator */}
-          <div className="hidden lg:flex items-center gap-1">
-            {stepsList.map((step) => {
-              const Icon = step.icon;
-              const isActive = currentStep === step.num;
-              const isPast = currentStep > step.num;
-
-              return (
-                <button
-                  key={step.num}
-                  onClick={() => setCurrentStep(step.num)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
-                    isActive
-                      ? 'bg-brand-600 text-white shadow-md'
-                      : isPast
-                      ? 'text-brand-400 hover:bg-slate-800'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{step.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Action Bar (Markdown Sync, User & Logout) */}
-          <div className="flex items-center gap-2">
-            {/* Markdown Export/Import Button */}
-            <button
-              onClick={() => setIsMarkdownModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-brand-600/30 hover:border-brand-500/50 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition"
-              title="마크다운 파일로 저장 및 불러오기"
-            >
-              <FileText className="w-3.5 h-3.5 text-brand-400" />
-              <span className="hidden sm:inline">마크다운 저장/불러오기</span>
-            </button>
-
-            <span className="text-[11px] text-slate-400 hidden xl:flex items-center gap-1 font-mono">
-              <CheckCircle className="w-3 h-3 text-emerald-400" />
-              {saveStatus}
-            </span>
-
-            {/* User Profile & Logout */}
-            <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800 text-xs text-slate-400">
-              <span className="text-white font-semibold hidden md:inline">{currentUser} 작가님</span>
-              <button
-                onClick={handleLogout}
-                className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-red-400 transition"
-                title="로그아웃"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Mobile Step Bar */}
-        <div className="lg:hidden flex overflow-x-auto border-b border-slate-800 bg-slate-900 px-2 py-1.5 gap-1 scrollbar-none">
-          {stepsList.map((step) => (
-            <button
-              key={step.num}
-              onClick={() => setCurrentStep(step.num)}
-              className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap font-medium ${
-                currentStep === step.num
-                  ? 'bg-brand-600 text-white'
-                  : 'text-slate-400 hover:bg-slate-800'
-              }`}
-            >
-              {step.label}
-            </button>
-          ))}
+          className={`${
+            isSidebarOpen ? 'w-full md:w-[32%] lg:w-[30%] min-w-[320px]' : 'hidden'
+          } flex flex-col h-full border-r border-zinc-800 transition-all duration-200 z-20`}
+        >
+          <AiChatPanel
+            projectState={projectState}
+            activeStep={activeStep}
+            onStateAction={handleAiAction}
+            onSelectStep={(s) => setActiveStep(s)}
+          />
         </div>
 
-        {/* Dynamic Step View Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          {currentStep === 1 && (
-            <Step1Settings
-              settings={settings}
-              onChange={setSettings}
-              onNext={() => setCurrentStep(2)}
-            />
-          )}
+        {/* Right Pane (6-Step Dashboard) - 68~70% width */}
+        <main className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-950">
+          {/* Step Navigation Tabs Bar */}
+          <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3 sm:px-6 py-2 overflow-x-auto scrollbar-none gap-2">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
+              {/* Toggle Left Sidebar Button */}
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors mr-1 cursor-pointer"
+                title={isSidebarOpen ? 'AI 채팅창 닫기' : 'AI 채팅창 열기'}
+              >
+                {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4 text-violet-400" />}
+              </button>
 
-          {currentStep === 2 && (
-            <Step2Outline
-              settings={settings}
-              episodes={episodes}
-              onChangeEpisodes={setEpisodes}
-              onNext={() => setCurrentStep(3)}
-              onPrev={() => setCurrentStep(1)}
-            />
-          )}
+              {steps.map((st) => {
+                const Icon = st.icon;
+                const isActive = activeStep === st.num;
+                return (
+                  <button
+                    key={st.num}
+                    onClick={() => setActiveStep(st.num)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-900/40'
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-zinc-500'}`} />
+                    <span>{st.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-          {currentStep === 3 && (
-            <Step3Writing
-              settings={settings}
-              episodes={episodes}
-              onChangeEpisodes={setEpisodes}
-              onNext={() => setCurrentStep(4)}
-              onPrev={() => setCurrentStep(2)}
-            />
-          )}
+          {/* Step Component View Area */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+            {activeStep === 1 && (
+              <Step1Worldbuilding
+                world={projectState.worldbuilding}
+                onChange={(updated) =>
+                  setProjectState((prev) => ({ ...prev, worldbuilding: updated }))
+                }
+              />
+            )}
 
-          {currentStep === 4 && (
-            <Step4Refine
-              settings={settings}
-              episodes={episodes}
-              onChangeEpisodes={setEpisodes}
-              onNext={() => setCurrentStep(5)}
-              onPrev={() => setCurrentStep(3)}
-            />
-          )}
+            {activeStep === 2 && (
+              <Step2Plotter
+                episodes={projectState.episodes}
+                onChangeEpisodes={(newEpisodes) =>
+                  setProjectState((prev) => ({ ...prev, episodes: newEpisodes }))
+                }
+                onNavigateToDraft={(epId) => {
+                  setActiveDraftEpisodeId(epId);
+                  setActiveStep(3);
+                }}
+              />
+            )}
 
-          {currentStep === 5 && (
-            <Step5Comments
-              settings={settings}
-              episodes={episodes}
-              personas={personas}
-              comments={comments}
-              onChangePersonas={setPersonas}
-              onChangeComments={setComments}
-              onNext={() => setCurrentStep(6)}
-              onPrev={() => setCurrentStep(4)}
-            />
-          )}
+            {activeStep === 3 && (
+              <Step3Drafting
+                world={projectState.worldbuilding}
+                episodes={projectState.episodes}
+                drafts={projectState.drafts}
+                activeEpisodeId={activeDraftEpisodeId}
+                onSelectEpisode={(id) => setActiveDraftEpisodeId(id)}
+                onSaveDraft={(draft) =>
+                  setProjectState((prev) => ({
+                    ...prev,
+                    drafts: {
+                      ...prev.drafts,
+                      [draft.episodeId]: draft,
+                    },
+                  }))
+                }
+                onNavigateToEditor={() => setActiveStep(4)}
+              />
+            )}
 
-          {currentStep === 6 && (
-            <Step6Viewer
-              settings={settings}
-              episodes={episodes}
-              comments={comments}
-              onPrev={() => setCurrentStep(5)}
-            />
-          )}
+            {activeStep === 4 && (
+              <Step4Editor
+                world={projectState.worldbuilding}
+                activeDraft={projectState.drafts[activeDraftEpisodeId]}
+                onUpdateContent={(newContent) => {
+                  setProjectState((prev) => {
+                    const ep = prev.episodes.find((e) => e.id === activeDraftEpisodeId) || prev.episodes[0];
+                    return {
+                      ...prev,
+                      drafts: {
+                        ...prev.drafts,
+                        [activeDraftEpisodeId]: {
+                          episodeId: activeDraftEpisodeId,
+                          episodeTitle: ep?.title || '에피소드',
+                          volume: prev.drafts[activeDraftEpisodeId]?.volume || '100%',
+                          sensualIntensity: prev.drafts[activeDraftEpisodeId]?.sensualIntensity || '150%',
+                          content: newContent,
+                          lastUpdated: new Date().toLocaleTimeString(),
+                        },
+                      },
+                    };
+                  });
+                }}
+              />
+            )}
+
+            {activeStep === 5 && (
+              <Step5Comments
+                personas={projectState.personas}
+                comments={projectState.comments}
+                episodes={projectState.episodes}
+                onUpdatePersonas={(updated) =>
+                  setProjectState((prev) => ({ ...prev, personas: updated }))
+                }
+                onAddComments={(newComments) =>
+                  setProjectState((prev) => ({
+                    ...prev,
+                    comments: [...prev.comments, ...newComments],
+                  }))
+                }
+              />
+            )}
+
+            {activeStep === 6 && <Step6Viewer projectState={projectState} />}
+          </div>
         </main>
       </div>
-
-      {/* Markdown Export & Import Modal */}
-      <MarkdownSyncModal
-        isOpen={isMarkdownModalOpen}
-        onClose={() => setIsMarkdownModalOpen(false)}
-        settings={settings}
-        episodes={episodes}
-        personas={personas}
-        comments={comments}
-        onImportSuccess={handleImportMarkdownData}
-      />
     </div>
   );
-}
+};
+
+export default App;

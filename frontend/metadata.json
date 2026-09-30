@@ -1,4 +1,4 @@
 {
-  "name": "StoryForge AI - 웹소설 창작 스튜디오",
-  "description": "좌측 AI 대화형 창작 어시스턴트와 우측 6단계 웹소설 집필 파이프라인(설정 기획, 영웅의 여정 12단계 플롯, 본문 집필, AI 부분 퇴고, 플랫폼별 독자 댓글러 페르소나 및 정주행 댓글 생성, 웹 뷰어 시연)을 지원하는 종합 소설 창작 스튜디오"
+  "name": "K-Web Novel Studio & AI Assistant",
+  "description": "All-in-one K-Web Novel creation and simulation studio with Hero's Journey plotting, high-control chapter drafting, inline AI selection editor, multi-platform reader personas, and interactive viewer."
 }

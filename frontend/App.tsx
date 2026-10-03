@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NovelProjectState, ChapterDraft, EpisodeCard, CommenterPersona, EpisodeComment } from './types';
+import { NovelProjectState, ChapterDraft, EpisodeCard, Step1Section, Step1SectionUpdate, ModelConfig } from './types';
 import { INITIAL_WORLDBUILDING, INITIAL_EPISODES, INITIAL_PERSONAS } from './constants';
 import { AuthModal } from './components/AuthModal';
 import { Header } from './components/Header';
@@ -12,68 +12,50 @@ import { Step5Comments } from './components/Step5Comments';
 import { Step6Viewer } from './components/Step6Viewer';
 import { BookText, Compass, PenTool, Edit3, MessageCircle, Eye, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
-const LOCAL_STORAGE_KEY = 'k_webnovel_studio_state_v1';
+const LOCAL_STORAGE_KEY = 'k_webnovel_studio_state_v5';
 
 export const App: React.FC = () => {
-  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('knovel_auth') === 'authenticated';
   });
 
-  // Main Project State
   const [projectState, setProjectState] = useState<NovelProjectState>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (!parsed.worldbuilding.parts) {
+          parsed.worldbuilding.parts = INITIAL_WORLDBUILDING.parts;
+        }
+        if (!parsed.worldbuilding.mainSetting) {
+          parsed.worldbuilding.mainSetting = INITIAL_WORLDBUILDING.mainSetting;
+        }
+        return parsed;
       } catch (e) {
         console.warn('Failed to parse local storage project', e);
       }
     }
     return {
-      version: '1.2.0',
+      version: '5.0.0',
       savedAt: new Date().toISOString(),
+      modelConfig: {
+        modelName: 'gemini-2.5-flash',
+        temperature: 0.85,
+        topP: 0.95,
+        thinkingBudget: 0,
+        maxOutputTokens: 3500,
+        presetName: 'creative'
+      },
       worldbuilding: INITIAL_WORLDBUILDING,
       episodes: INITIAL_EPISODES,
-      drafts: {
-        'ep-1': {
-          episodeId: 'ep-1',
-          episodeTitle: '제1화: 성가대실의 닫힌 문',
-          volume: '100%',
-          sensualIntensity: '150%',
-          content: `비가 쏟아지는 수요일 저녁이었다.
-
-수요 예배가 끝난 뒤에도 성가대실엔 서유진 혼자 남아 있었다. 
-그녀는 건반 덮개를 닫지 못한 채, 성가대석 난간에 기댄 채 멍하니 빗소리를 듣고 있었다. 
-
-"집사님."
-
-등 뒤에서 낮고 차분한 목소리가 들려왔다.
-뒤를 돌아보지 않아도 알 수 있었다. 지난달 우리 교회로 부임한 청년부 사역자, 스물네 살의 강태하 전도사였다.
-
-"불이 켜져 있길래 와 봤습니다."
-
-그가 천천히 다가왔다. 검은 셔츠 소매를 단정하게 걷어 올린 팔목 위로 푸른 핏줄이 서늘하게 돋아 있었다. 유진보다 여덟 살이나 어렸지만, 그의 앞에만 서면 유진은 늘 숨이 턱 끝까지 막혀왔다.
-
-"아, 태하 전도사님... 악보 정리가 덜 끝나서요."
-
-"거짓말을 하시는군요."
-
-태하는 건반 앞에 멈춰 서서 유진을 내려다보았다. 그의 깊고 어두운 눈동자가 그녀의 떨리는 입술과 가녀린 목덜미를 찬찬히 훑어 내렸다.
-
-"기도를 드리러 온 것도 아니고, 악보를 보는 것도 아니었습니다. 그저... 누군가 이곳에 들어와 문을 잠가주길 기다리신 표정이었는데요."
-
-유진의 심장이 덜컥 내려앉았다. 그의 손끝이 악보를 짚는 척하며 유진의 손가락등을 은근하게 스쳐 지나갔다. 차가우면서도 소름 끼치도록 뜨거운 전율이 척추를 타고 번져나갔다.`,
-          lastUpdated: new Date().toLocaleTimeString(),
-        },
-      },
+      drafts: {},
       personas: INITIAL_PERSONAS,
       comments: [
         {
           id: 'c-init-1',
           episodeId: 'ep-1',
           personaId: 'p-1',
-          authorName: '새벽기도3년차',
+          authorName: '새벽기도3년차_원덬',
           platform: 'Theqoo',
           content: '와 첫 화부터 텐션 무슨 일이야 ㅠㅠㅠㅠ 연하 전도사 말투 개치명적임 진짜 심장 터질뻔함;;',
           upvotes: 84,
@@ -83,12 +65,12 @@ export const App: React.FC = () => {
         {
           id: 'c-init-2',
           episodeId: 'ep-1',
-          personaId: 'p-2',
-          authorName: '성경책던진놈',
-          platform: 'ArcaLive',
-          content: '성가대실에서 단둘이 비 내리는 날에 ㅋㅋㅋ 클리셰지만 도파민 GOAT 인정함 개추 박음',
-          upvotes: 42,
-          timestamp: '45분 전',
+          personaId: 'p-3',
+          authorName: '청년부_교회목격자',
+          platform: 'Acquaintance',
+          content: '미친... 나 실제 손세미 쌤이랑 최창환 전도사님 아는 교회 사람인데... 소설 속 둘이 성가대실에서 마주치는 장면 보고 소름 돋음 ㄷㄷ 현실에서 둘이 어색하게 눈 피하던 거 생각나서 배덕감 미쳤다 진짜',
+          upvotes: 62,
+          timestamp: '30분 전',
         },
       ],
     };
@@ -98,8 +80,8 @@ export const App: React.FC = () => {
   const [activeDraftEpisodeId, setActiveDraftEpisodeId] = useState<string>('ep-1');
   const [savedNotification, setSavedNotification] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [highlightedSections, setHighlightedSections] = useState<Step1Section[]>([]);
 
-  // Sync to local storage on mutation
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projectState));
     setSavedNotification(true);
@@ -107,9 +89,62 @@ export const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [projectState]);
 
-  // Handle AI dynamic state action
   const handleAiAction = (actionType: string, payload: any) => {
-    if (actionType === 'UPDATE_WORLDBUILDING') {
+    if (actionType === 'UPDATE_STEP1_MULTI_SECTIONS') {
+      const updates = (payload.updates || []) as Step1SectionUpdate[];
+      const touchedSecs: Step1Section[] = [];
+
+      setProjectState((prev) => {
+        const curWorld = { ...prev.worldbuilding };
+
+        for (const upd of updates) {
+          touchedSecs.push(upd.section);
+
+          if (upd.section === 'MALE_LEAD') {
+            curWorld.maleLead = {
+              ...curWorld.maleLead,
+              ...(upd.data.name !== undefined && { name: upd.data.name }),
+              ...(upd.data.age !== undefined && { age: upd.data.age }),
+              ...(upd.data.role !== undefined && { role: upd.data.role }),
+              ...(upd.data.personality !== undefined && { personality: upd.data.personality }),
+              ...(upd.data.appearance !== undefined && { appearance: upd.data.appearance }),
+              ...(upd.data.speechStyle !== undefined && { speechStyle: upd.data.speechStyle }),
+            };
+          } else if (upd.section === 'FEMALE_LEAD') {
+            curWorld.femaleLead = {
+              ...curWorld.femaleLead,
+              ...(upd.data.name !== undefined && { name: upd.data.name }),
+              ...(upd.data.age !== undefined && { age: upd.data.age }),
+              ...(upd.data.role !== undefined && { role: upd.data.role }),
+              ...(upd.data.personality !== undefined && { personality: upd.data.personality }),
+              ...(upd.data.appearance !== undefined && { appearance: upd.data.appearance }),
+              ...(upd.data.speechStyle !== undefined && { speechStyle: upd.data.speechStyle }),
+            };
+          } else if (upd.section === 'SUPPORTING_CAST') {
+            curWorld.supportingCharacters = Array.isArray(upd.data) ? upd.data : curWorld.supportingCharacters;
+          } else if (upd.section === 'STYLE_AND_TIME') {
+            if (upd.data.toneStyle !== undefined) curWorld.toneStyle = upd.data.toneStyle;
+            if (upd.data.mainSetting !== undefined) curWorld.mainSetting = upd.data.mainSetting;
+            if (upd.data.eventPov !== undefined) curWorld.eventPov = upd.data.eventPov;
+            if (upd.data.eventYear !== undefined) curWorld.eventYear = upd.data.eventYear;
+            if (upd.data.writingYear !== undefined) curWorld.writingYear = upd.data.writingYear;
+            if (upd.data.writingTense !== undefined) curWorld.writingTense = upd.data.writingTense;
+          } else if (upd.section === 'META_BASIC') {
+            if (upd.data.title !== undefined) curWorld.title = upd.data.title;
+            if (upd.data.tags !== undefined) curWorld.tags = upd.data.tags;
+            if (upd.data.targetAudience !== undefined) curWorld.targetAudience = upd.data.targetAudience;
+          }
+        }
+
+        return {
+          ...prev,
+          worldbuilding: curWorld,
+        };
+      });
+
+      setHighlightedSections(touchedSecs);
+      setTimeout(() => setHighlightedSections([]), 2500);
+    } else if (actionType === 'UPDATE_WORLDBUILDING') {
       const { field, value } = payload;
       setProjectState((prev) => ({
         ...prev,
@@ -121,6 +156,7 @@ export const App: React.FC = () => {
     } else if (actionType === 'ADD_EPISODE') {
       const newEp: EpisodeCard = {
         id: `ep-${Date.now()}`,
+        part: payload.part || 1,
         stageNumber: payload.stageNumber || 2,
         subNumber: projectState.episodes.length + 1,
         title: payload.title || '새 에피소드',
@@ -135,13 +171,41 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleUpdateEpisodeTitle = (episodeId: string, newTitle: string) => {
+    setProjectState((prev) => ({
+      ...prev,
+      episodes: prev.episodes.map((ep) =>
+        ep.id === episodeId ? { ...ep, title: newTitle } : ep
+      ),
+    }));
+  };
+
+  const handleUpdatePartInstruction = (partNumber: number, instruction: string) => {
+    setProjectState((prev) => ({
+      ...prev,
+      worldbuilding: {
+        ...prev.worldbuilding,
+        parts: (prev.worldbuilding.parts || []).map((p) =>
+          p.partNumber === partNumber ? { ...p, partInstruction: instruction } : p
+        ),
+      },
+    }));
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    setProjectState((prev) => ({
+      ...prev,
+      comments: prev.comments.filter((c) => c.id !== commentId),
+    }));
+  };
+
   const handleLogout = () => {
     sessionStorage.removeItem('knovel_auth');
     setIsAuthenticated(false);
   };
 
   const steps = [
-    { num: 1, title: 'Step 1: 메타 & 세계관', icon: BookText },
+    { num: 1, title: 'Step 1: 메타 & 세계관 (5대 섹션)', icon: BookText },
     { num: 2, title: 'Step 2: 영웅의 여정 플롯', icon: Compass },
     { num: 3, title: 'Step 3: 본문 집필/수위 조절', icon: PenTool },
     { num: 4, title: 'Step 4: AI 선택 수정', icon: Edit3 },
@@ -150,41 +214,39 @@ export const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-950 text-zinc-100 font-sans selection:bg-violet-600 selection:text-white">
-      {/* 0. Authentication Gate Lock Modal */}
+    <div className="h-screen w-screen flex flex-col bg-zinc-950 text-zinc-100 font-sans selection:bg-violet-600 selection:text-white overflow-hidden">
       {!isAuthenticated && <AuthModal onSuccess={() => setIsAuthenticated(true)} />}
 
-      {/* Main Studio Viewport (Rendered behind or when authenticated) */}
-      <Header
-        projectState={projectState}
-        onImportState={(newState) => setProjectState(newState)}
-        onLogout={handleLogout}
-        savedNotification={savedNotification}
-      />
+      <div className="shrink-0">
+        <Header
+          projectState={projectState}
+          onImportState={(newState) => setProjectState(newState)}
+          onLogout={handleLogout}
+          savedNotification={savedNotification}
+        />
+      </div>
 
-      {/* Workspace Split-Pane Body */}
-      <div className="flex-1 flex overflow-hidden h-[calc(100vh-61px)]">
-        {/* Left Pane (AI Co-pilot Chatbot) - 30~35% width */}
+      <div className="flex-1 min-h-0 flex flex-row overflow-hidden w-full relative">
         <div
           className={`${
             isSidebarOpen ? 'w-full md:w-[32%] lg:w-[30%] min-w-[320px]' : 'hidden'
-          } flex flex-col h-full border-r border-zinc-800 transition-all duration-200 z-20`}
+          } h-full min-h-0 flex flex-col shrink-0 z-20 border-r border-zinc-800 transition-all duration-200`}
         >
           <AiChatPanel
             projectState={projectState}
             activeStep={activeStep}
             onStateAction={handleAiAction}
             onSelectStep={(s) => setActiveStep(s)}
+            lastUpdatedSections={highlightedSections}
+            onUpdateModelConfig={(cfg) => setProjectState((prev) => ({ ...prev, modelConfig: cfg }))}
           />
         </div>
 
-        {/* Right Pane (6-Step Dashboard) - 68~70% width */}
-        <main className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-950">
-          {/* Step Navigation Tabs Bar */}
-          <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3 sm:px-6 py-2 overflow-x-auto scrollbar-none gap-2">
+        <main className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden bg-zinc-950">
+          <div className="shrink-0 flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3 sm:px-6 py-2 overflow-x-auto scrollbar-none gap-2 z-10">
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
-              {/* Toggle Left Sidebar Button */}
               <button
+                type="button"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors mr-1 cursor-pointer"
                 title={isSidebarOpen ? 'AI 채팅창 닫기' : 'AI 채팅창 열기'}
@@ -198,6 +260,7 @@ export const App: React.FC = () => {
                 return (
                   <button
                     key={st.num}
+                    type="button"
                     onClick={() => setActiveStep(st.num)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                       isActive
@@ -213,20 +276,21 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Step Component View Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8 overscroll-contain">
             {activeStep === 1 && (
               <Step1Worldbuilding
                 world={projectState.worldbuilding}
                 onChange={(updated) =>
                   setProjectState((prev) => ({ ...prev, worldbuilding: updated }))
                 }
+                highlightedSections={highlightedSections}
               />
             )}
 
             {activeStep === 2 && (
               <Step2Plotter
                 episodes={projectState.episodes}
+                parts={projectState.worldbuilding.parts}
                 onChangeEpisodes={(newEpisodes) =>
                   setProjectState((prev) => ({ ...prev, episodes: newEpisodes }))
                 }
@@ -254,12 +318,20 @@ export const App: React.FC = () => {
                   }))
                 }
                 onNavigateToEditor={() => setActiveStep(4)}
+                onUpdateEpisodeTitle={handleUpdateEpisodeTitle}
+                onUpdatePartInstruction={handleUpdatePartInstruction}
+                modelConfig={projectState.modelConfig}
               />
             )}
 
+            {/* ★ Step4 에디터: episodes, drafts, activeEpisodeId, onSaveDraft 완전 연동 */}
             {activeStep === 4 && (
               <Step4Editor
                 world={projectState.worldbuilding}
+                episodes={projectState.episodes}
+                drafts={projectState.drafts}
+                activeEpisodeId={activeDraftEpisodeId}
+                onSelectEpisode={(id) => setActiveDraftEpisodeId(id)}
                 activeDraft={projectState.drafts[activeDraftEpisodeId]}
                 onUpdateContent={(newContent) => {
                   setProjectState((prev) => {
@@ -270,15 +342,25 @@ export const App: React.FC = () => {
                         ...prev.drafts,
                         [activeDraftEpisodeId]: {
                           episodeId: activeDraftEpisodeId,
-                          episodeTitle: ep?.title || '에피소드',
+                          episodeTitle: prev.drafts[activeDraftEpisodeId]?.episodeTitle || ep?.title || '에피소드',
                           volume: prev.drafts[activeDraftEpisodeId]?.volume || '100%',
                           sensualIntensity: prev.drafts[activeDraftEpisodeId]?.sensualIntensity || '150%',
                           content: newContent,
                           lastUpdated: new Date().toLocaleTimeString(),
+                          customInstruction: prev.drafts[activeDraftEpisodeId]?.customInstruction,
                         },
                       },
                     };
                   });
+                }}
+                onSaveDraft={(draft) => {
+                  setProjectState((prev) => ({
+                    ...prev,
+                    drafts: {
+                      ...prev.drafts,
+                      [draft.episodeId]: draft,
+                    },
+                  }));
                 }}
               />
             )}
@@ -288,6 +370,8 @@ export const App: React.FC = () => {
                 personas={projectState.personas}
                 comments={projectState.comments}
                 episodes={projectState.episodes}
+                world={projectState.worldbuilding}
+                drafts={projectState.drafts}
                 onUpdatePersonas={(updated) =>
                   setProjectState((prev) => ({ ...prev, personas: updated }))
                 }
@@ -297,6 +381,7 @@ export const App: React.FC = () => {
                     comments: [...prev.comments, ...newComments],
                   }))
                 }
+                onDeleteComment={handleDeleteComment}
               />
             )}
 

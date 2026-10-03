@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { NovelProjectState, PlatformType } from '../types';
-import { BookOpen, Moon, Sun, Type, MessageSquare, ThumbsUp, Star, ChevronLeft, ChevronRight, Share2, Copy, Check } from 'lucide-react';
+import { NovelProjectState, PlatformType, EpisodeComment } from '../types';
+import { BookOpen, Moon, Sun, Type, MessageSquare, ThumbsUp, Star, ChevronLeft, ChevronRight, Share2, Copy, Check, CornerDownRight, UserCheck } from 'lucide-react';
 
 interface Step6Props {
   projectState: NovelProjectState;
@@ -18,6 +18,15 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
   const currentDraft = currentEp ? drafts[currentEp.id] : undefined;
   const epComments = comments.filter((c) => c.episodeId === currentEp?.id);
 
+  const rootComments = epComments.filter((c) => !c.parentId);
+  const repliesMap = epComments.reduce<Record<string, EpisodeComment[]>>((acc, cur) => {
+    if (cur.parentId) {
+      acc[cur.parentId] = acc[cur.parentId] || [];
+      acc[cur.parentId].push(cur);
+    }
+    return acc;
+  }, {});
+
   const themeClasses = {
     dark: 'bg-zinc-950 text-zinc-200 border-zinc-800',
     sepia: 'bg-[#f4ecd8] text-[#433422] border-[#e2d5bc]',
@@ -27,7 +36,10 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
 
   const handleCopyText = () => {
     if (!currentDraft?.content) return;
-    navigator.clipboard.writeText(currentDraft.content);
+    const plainText = currentDraft.content
+      .replace(/<imagination>|<\/imagination>/g, '')
+      .replace(/<reminiscence>|<\/reminiscence>/g, '');
+    navigator.clipboard.writeText(plainText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -35,6 +47,79 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
   const currentIdx = episodes.findIndex((e) => e.id === currentEp?.id);
   const prevEp = currentIdx > 0 ? episodes[currentIdx - 1] : null;
   const nextEp = currentIdx < episodes.length - 1 ? episodes[currentIdx + 1] : null;
+
+  // ★ 사용자 요구사항:
+  // 1) [작가의 상상] (<imagination>) - 튀지 않으면서도 은은하게 상상임을 구분
+  // 2) [작가의 과거 회상] (<reminiscence>) - 과거를 되짚는 회상임을 가시적으로 단정하게 표기
+  const renderFormattedNovelBody = (rawContent: string) => {
+    if (!rawContent) return null;
+
+    // <imagination> 및 <reminiscence> 태그를 모두 분할 파싱
+    const parts = rawContent.split(/(<imagination>[\s\S]*?<\/imagination>|<reminiscence>[\s\S]*?<\/reminiscence>)/g);
+
+    return parts.map((part, index) => {
+      // 1. [작가의 상상] 블록
+      if (part.startsWith('<imagination>') && part.endsWith('</imagination>')) {
+        const imaginationText = part.replace('<imagination>', '').replace('</imagination>', '').trim();
+
+        const imaginationBlockTheme = {
+          dark: 'border-fuchsia-700/60 bg-fuchsia-950/20 text-fuchsia-200',
+          sepia: 'border-[#b59a85] bg-[#ebd8c8]/40 text-[#543b2e]',
+          light: 'border-fuchsia-300 bg-fuchsia-50/70 text-fuchsia-950',
+          oled: 'border-fuchsia-800 bg-zinc-950 text-fuchsia-200',
+        }[theme];
+
+        return (
+          <div
+            key={index}
+            className={`my-5 rounded-lg border-l-4 pl-4 pr-3 py-3 transition-colors ${imaginationBlockTheme}`}
+          >
+            <div className="flex items-center gap-1.5 text-[11px] font-sans font-medium opacity-75 mb-1.5 select-none tracking-tight">
+              <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-400" />
+              <span>[작가의 상상]</span>
+            </div>
+            <div className="italic leading-relaxed whitespace-pre-wrap opacity-95">
+              {imaginationText}
+            </div>
+          </div>
+        );
+      }
+
+      // 2. [작가의 과거 회상] 블록
+      if (part.startsWith('<reminiscence>') && part.endsWith('</reminiscence>')) {
+        const reminiscenceText = part.replace('<reminiscence>', '').replace('</reminiscence>', '').trim();
+
+        const reminiscenceBlockTheme = {
+          dark: 'border-cyan-700/60 bg-cyan-950/20 text-cyan-200',
+          sepia: 'border-[#8ea4b0] bg-[#dbe5ea]/40 text-[#293d48]',
+          light: 'border-cyan-300 bg-cyan-50/70 text-cyan-950',
+          oled: 'border-cyan-800 bg-zinc-950 text-cyan-200',
+        }[theme];
+
+        return (
+          <div
+            key={index}
+            className={`my-5 rounded-lg border-l-4 pl-4 pr-3 py-3 transition-colors ${reminiscenceBlockTheme}`}
+          >
+            <div className="flex items-center gap-1.5 text-[11px] font-sans font-medium opacity-75 mb-1.5 select-none tracking-tight">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+              <span>[작가의 과거 회상]</span>
+            </div>
+            <div className="italic leading-relaxed whitespace-pre-wrap opacity-95">
+              {reminiscenceText}
+            </div>
+          </div>
+        );
+      }
+
+      // 3. 일반 서술 단락
+      return (
+        <div key={index} className="whitespace-pre-wrap leading-relaxed">
+          {part}
+        </div>
+      );
+    });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in pb-16">
@@ -48,13 +133,12 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
             <h2 className="text-lg font-bold text-white tracking-tight">웹소설 시연 뷰어 (Viewer Simulation)</h2>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            실제 네이버/카카오/노벨피아 뷰어 환경처럼 본문과 플랫폼별 연쇄 댓글을 열람합니다.
+            <strong>[작가의 상상]</strong> 및 <strong>[작가의 과거 회상]</strong>이 본문 속에서 단정하게 가시화되며, 독자 댓글 및 댓댓글을 실시간으로 열람합니다.
           </p>
         </div>
 
         {/* Viewer Style Controls */}
         <div className="flex flex-wrap items-center gap-2 bg-zinc-900 p-2 rounded-xl border border-zinc-800">
-          {/* Theme toggles */}
           <div className="flex items-center gap-1 border-r border-zinc-700 pr-2">
             <button
               onClick={() => setTheme('dark')}
@@ -79,18 +163,17 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
             </button>
           </div>
 
-          {/* Font Size */}
           <div className="flex items-center gap-1 text-xs text-zinc-400 pl-1">
             <button
               onClick={() => setFontSize((s) => Math.max(13, s - 1))}
-              className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+              className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200 hover:bg-zinc-700 cursor-pointer"
             >
               가-
             </button>
             <span className="w-7 text-center font-mono">{fontSize}px</span>
             <button
               onClick={() => setFontSize((s) => Math.min(22, s + 1))}
-              className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+              className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200 hover:bg-zinc-700 cursor-pointer"
             >
               가+
             </button>
@@ -117,9 +200,9 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
               onChange={(e) => setSelectedEpId(e.target.value)}
               className="rounded bg-zinc-950 border border-zinc-700 px-2.5 py-1 text-xs text-white font-medium"
             >
-              {episodes.map((ep, idx) => (
+              {episodes.map((ep) => (
                 <option key={ep.id} value={ep.id}>
-                  {ep.title}
+                  [{ep.part || 1}부] {drafts[ep.id]?.episodeTitle || ep.title}
                 </option>
               ))}
             </select>
@@ -135,35 +218,31 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
           className={`p-6 sm:p-10 font-serif min-h-[480px] leading-relaxed transition-colors duration-200 ${themeClasses[theme]}`}
           style={{ fontSize: `${fontSize}px`, lineHeight }}
         >
-          {/* Episode Title Header inside text */}
           <div className="text-center pb-8 mb-8 border-b border-zinc-800/40">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight mb-2">
-              {currentEp?.title || '에피소드를 선택해 주세요'}
+              {currentDraft?.episodeTitle || currentEp?.title || '에피소드를 선택해 주세요'}
             </h1>
             <p className="text-xs opacity-60 font-sans">
-              작가: 사에리버 (saeriver) · 조회수: 12,482 · 추천수: 1,429
+              작가: 손세미 · 회차: [{currentEp?.part || 1}부] Stage {currentEp?.stageNumber} · 조회수: 14,892 · 추천수: 2,140
             </p>
           </div>
 
-          {/* Actual Novel Paragraphs */}
           {currentDraft?.content ? (
-            <div className="space-y-4 whitespace-pre-wrap selection:bg-violet-600 selection:text-white">
-              {currentDraft.content}
+            <div className="space-y-4 selection:bg-violet-600 selection:text-white">
+              {renderFormattedNovelBody(currentDraft.content)}
             </div>
           ) : (
             <div className="text-center py-20 opacity-50 font-sans text-sm">
               <p>아직 집필된 챕터 본문이 없습니다.</p>
-              <p className="text-xs mt-1">Step 3(본문 집필)에서 [본문 AI 생성하기]를 진행하세요.</p>
+              <p className="text-xs mt-1">Step 3(본문 집필)에서 [본문 및 제목 AI 생성하기]를 진행하세요.</p>
             </div>
           )}
 
-          {/* End of Chapter Note */}
           <div className="mt-16 pt-8 border-t border-zinc-800/40 text-center font-sans">
             <p className="text-xs opacity-60 mb-6">
-              - {currentEp?.title} [完] -
+              - {currentDraft?.episodeTitle || currentEp?.title} [完] -
             </p>
 
-            {/* Episode Navigation Buttons */}
             <div className="flex items-center justify-center gap-4">
               <button
                 disabled={!prevEp}
@@ -197,43 +276,84 @@ export const Step6Viewer: React.FC<Step6Props> = ({ projectState }) => {
             <span className="text-xs text-zinc-500 font-sans">추천순 정렬</span>
           </div>
 
-          {epComments.length === 0 ? (
+          {rootComments.length === 0 ? (
             <div className="text-center py-6 text-xs text-zinc-500 font-sans">
-              등록된 댓글이 없습니다. Step 5에서 [해당 회차 독자 댓글 생성]을 눌러보세요.
+              등록된 댓글이 없습니다. Step 5에서 [본문 완독 댓글 생성] 및 [댓글 대화 생성]을 눌러보세요.
             </div>
           ) : (
-            <div className="space-y-3 font-sans">
-              {epComments.map((cmt) => (
-                <div
-                  key={cmt.id}
-                  className="rounded-xl border border-zinc-800/80 bg-zinc-900/60 p-4 space-y-2 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{cmt.authorName}</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-zinc-800 text-violet-300 border border-violet-900/50">
-                        {cmt.platform}
-                      </span>
-                      {cmt.rating && (
-                        <div className="flex items-center text-amber-400 text-[10px]">
-                          {'★'.repeat(cmt.rating)}
+            <div className="space-y-4 font-sans">
+              {rootComments.map((cmt) => {
+                const isAcquaintance = cmt.platform === 'Acquaintance';
+                const replies = repliesMap[cmt.id] || [];
+
+                return (
+                  <div key={cmt.id} className="space-y-2">
+                    <div
+                      className={`rounded-xl border p-4 space-y-2 text-xs ${
+                        isAcquaintance ? 'border-amber-700/60 bg-amber-950/20' : 'border-zinc-800/80 bg-zinc-900/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white flex items-center gap-1">
+                            {isAcquaintance && <UserCheck className="w-3 h-3 text-amber-400" />}
+                            {cmt.authorName}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                            isAcquaintance ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-zinc-800 text-violet-300 border border-violet-900/50'
+                          }`}>
+                            {isAcquaintance ? '교회 지인' : cmt.platform}
+                          </span>
+                          {cmt.rating && (
+                            <div className="flex items-center text-amber-400 text-[10px]">
+                              {'★'.repeat(cmt.rating)}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-zinc-500">{cmt.timestamp}</span>
-                  </div>
+                        <span className="text-[10px] text-zinc-500">{cmt.timestamp}</span>
+                      </div>
 
-                  <p className="text-zinc-200 leading-relaxed text-[13px]">{cmt.content}</p>
+                      <p className="text-zinc-200 leading-relaxed text-[13px]">{cmt.content}</p>
 
-                  <div className="flex items-center justify-between pt-1 text-[11px] text-zinc-500">
-                    <span className="text-[10px] text-zinc-600">신고 | 답글</span>
-                    <div className="flex items-center gap-1.5 text-violet-400 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">
-                      <ThumbsUp className="w-3 h-3" />
-                      <span>{cmt.upvotes}</span>
+                      <div className="flex items-center justify-between pt-1 text-[11px] text-zinc-500">
+                        <span className="text-[10px] text-zinc-600">답글 {replies.length}개</span>
+                        <div className="flex items-center gap-1.5 text-violet-400 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">
+                          <ThumbsUp className="w-3 h-3" />
+                          <span>{cmt.upvotes}</span>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* 대댓글 렌더링 */}
+                    {replies.length > 0 && (
+                      <div className="pl-6 space-y-2 border-l-2 border-violet-800/30 ml-4">
+                        {replies.map((rep) => (
+                          <div
+                            key={rep.id}
+                            className={`rounded-lg border p-3 text-xs space-y-1 ${
+                              rep.platform === 'Acquaintance' ? 'border-amber-800/40 bg-amber-950/30' : 'border-zinc-800 bg-zinc-900/70'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <CornerDownRight className="w-3 h-3 text-violet-400" />
+                                <span className="font-bold text-white text-[11px]">{rep.authorName}</span>
+                                {rep.replyToAuthor && (
+                                  <span className="text-[10px] text-violet-300 font-mono">
+                                    @{rep.replyToAuthor}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[9px] text-zinc-500">{rep.timestamp}</span>
+                            </div>
+                            <p className="text-[12px] text-zinc-300 pl-4 leading-relaxed">{rep.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

@@ -1,27 +1,66 @@
-import React, { useState, useRef } from 'react';
-import { WorldbuildingState, ChapterDraft } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { WorldbuildingState, ChapterDraft, EpisodeCard } from '../types';
 import { rewriteSelection } from '../services/geminiService';
-import { Sparkles, Wand2, Check, RefreshCw, Undo2, Flame, Heart, MessageSquare } from 'lucide-react';
+import { Sparkles, Wand2, Check, RefreshCw, Flame, Heart, MessageSquare, Save, BookOpen, Clock, FileText } from 'lucide-react';
 
 interface Step4Props {
   world: WorldbuildingState;
+  episodes?: EpisodeCard[];
+  drafts?: Record<string, ChapterDraft>;
+  activeEpisodeId?: string;
+  onSelectEpisode?: (epId: string) => void;
   activeDraft?: ChapterDraft;
   onUpdateContent: (newContent: string) => void;
+  onSaveDraft?: (draft: ChapterDraft) => void;
 }
 
 export const Step4Editor: React.FC<Step4Props> = ({
   world,
+  episodes = [],
+  drafts = {},
+  activeEpisodeId = 'ep-1',
+  onSelectEpisode,
   activeDraft,
   onUpdateContent,
+  onSaveDraft,
 }) => {
-  const content = activeDraft?.content || '';
+  // 현재 활성화된 초안 결정 (props.activeDraft 우선, 없으면 drafts[activeEpisodeId])
+  const currentEffectiveDraft = activeDraft || drafts[activeEpisodeId];
+
+  // 로컬 편집 텍스트 상태
+  const [content, setContent] = useState<string>(currentEffectiveDraft?.content || '');
+  const [saveSuccessToast, setSaveSuccessToast] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [selectedText, setSelectedText] = useState('');
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [isRewriting, setIsRewriting] = useState(false);
-  const [lastRewritten, setLastRewritten] = useState<string | null>(null);
+
+  // activeDraft나 activeEpisodeId가 변경되었을 때 즉각 에디터에 본문 로드
+  useEffect(() => {
+    const draft = activeDraft || drafts[activeEpisodeId];
+    setContent(draft?.content || '');
+    setSelectedText('');
+    setSelectionRange(null);
+  }, [activeEpisodeId, activeDraft?.content, drafts[activeEpisodeId]?.content]);
+
+  // ★ 사용자 요구사항: 텍스트 임의 수정 후 [저장] 버튼을 눌러 영구 저장
+  const handleSaveTextChanges = () => {
+    onUpdateContent(content);
+
+    if (onSaveDraft && currentEffectiveDraft) {
+      const updatedDraft: ChapterDraft = {
+        ...currentEffectiveDraft,
+        content: content,
+        lastUpdated: new Date().toLocaleTimeString(),
+      };
+      onSaveDraft(updatedDraft);
+    }
+
+    setSaveSuccessToast(true);
+    setTimeout(() => setSaveSuccessToast(false), 2500);
+  };
 
   const handleSelectText = () => {
     if (!textareaRef.current) return;
@@ -41,13 +80,13 @@ export const Step4Editor: React.FC<Step4Props> = ({
 
     try {
       const rewritten = await rewriteSelection(content, selectedText, instruction, world);
-      setLastRewritten(rewritten);
 
       // Replace selection in content
       const before = content.slice(0, selectionRange.start);
       const after = content.slice(selectionRange.end);
       const updated = before + rewritten + after;
 
+      setContent(updated);
       onUpdateContent(updated);
       setSelectedText('');
       setSelectionRange(null);
@@ -65,19 +104,42 @@ export const Step4Editor: React.FC<Step4Props> = ({
     { label: '수위 높이기', prompt: '필터링 없이 거칠고 원초적인 수위로 묘사를 전환해줘', icon: Sparkles },
   ];
 
+  const wordCount = content.length;
+  const currentEpObj = episodes.find(e => e.id === activeEpisodeId) || episodes[0];
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Intro */}
-      <div className="rounded-xl border border-violet-900/50 bg-gradient-to-r from-violet-950/40 to-indigo-950/30 p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-violet-600 text-white">
-            Step 4
-          </span>
-          <h2 className="text-lg font-bold text-white tracking-tight">AI 선택 영역 인라인 에디터 (Selection Editor)</h2>
+    <div className="space-y-6 animate-fade-in pb-12">
+      {/* Intro Header with Episode Selector */}
+      <div className="rounded-xl border border-violet-900/50 bg-gradient-to-r from-violet-950/40 to-indigo-950/30 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-violet-600 text-white">
+              Step 4
+            </span>
+            <h2 className="text-lg font-bold text-white tracking-tight">AI 선택 영역 인라인 에디터 &amp; 본문 수정기</h2>
+          </div>
+          <p className="text-xs text-zinc-400 mt-1">
+            Step 3에서 생성·저장된 본문을 불러와 <strong>자유롭게 직접 텍스트를 수정하고 [저장]</strong>하거나, 드래그 선택하여 AI 부분 재집필을 적용합니다.
+          </p>
         </div>
-        <p className="text-xs text-zinc-400 mt-1">
-          수정하고 싶은 문장을 마우스로 드래그(선택)한 뒤, 프리셋 버튼이나 맞춤 지시어를 입력하여 문맥에 맞춰 정밀 재집필합니다.
-        </p>
+
+        {/* 에피소드 선택기 */}
+        {episodes.length > 0 && onSelectEpisode && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-zinc-400">편집 대상 에피소드:</label>
+            <select
+              value={activeEpisodeId}
+              onChange={(e) => onSelectEpisode(e.target.value)}
+              className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-white font-medium focus:border-violet-500 focus:outline-none"
+            >
+              {episodes.map((ep) => (
+                <option key={ep.id} value={ep.id}>
+                  [{ep.part || 1}부] {drafts[ep.id]?.episodeTitle || ep.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Floating Toolbar for Selected Text */}
@@ -94,7 +156,7 @@ export const Step4Editor: React.FC<Step4Props> = ({
                 setSelectedText('');
                 setSelectionRange(null);
               }}
-              className="text-xs text-zinc-400 hover:text-white"
+              className="text-xs text-zinc-400 hover:text-white cursor-pointer"
             >
               선택 해제
             </button>
@@ -135,7 +197,7 @@ export const Step4Editor: React.FC<Step4Props> = ({
                   if (customPrompt.trim()) handleRewrite(customPrompt);
                 }
               }}
-              placeholder="직접 지시 입력 (예: 남주가 여주의 턱을 쥐며 속삭이는 장면으로 수정)..."
+              placeholder="선택 구절 수정 지시 입력 (예: 남주가 여주의 턱을 치켜올리며 차갑게 속삭이는 장면으로 수정)..."
               className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-violet-500 focus:outline-none"
             />
             <button
@@ -151,28 +213,51 @@ export const Step4Editor: React.FC<Step4Props> = ({
           {isRewriting && (
             <div className="flex items-center gap-2 text-xs text-violet-300 animate-pulse pt-1">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>AI가 해당 문장을 정밀 수정하여 본문에 교체 반영하고 있습니다...</span>
+              <span>AI가 선택한 문맥을 분석하여 정밀 재집필하고 있습니다...</span>
             </div>
           )}
         </div>
       )}
 
       {/* Editor Body */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800">
-          <span className="text-xs text-zinc-400">
-            현재 챕터: <strong className="text-zinc-200">{activeDraft?.episodeTitle || '선택된 에피소드 없음'}</strong>
-          </span>
-          <span className="text-[11px] text-zinc-500">
-            문장을 마우스로 드래그하면 AI 수정 툴바가 활성화됩니다.
-          </span>
+      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 space-y-3">
+        {/* 상단 툴바: 챕터 제목 및 글자수, [저장] 버튼 */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-zinc-800 gap-2">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-violet-400" />
+            <span className="text-xs text-zinc-300 font-bold">
+              [{currentEpObj?.part || 1}부] {currentEffectiveDraft?.episodeTitle || currentEpObj?.title || '에피소드 본문'}
+            </span>
+            <span className="text-[11px] text-zinc-500 font-mono">({wordCount.toLocaleString()}자)</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* ★ 사용자 요구사항: Step4에서 텍스트 임의 수정 후 [저장] 버튼 */}
+            <button
+              type="button"
+              onClick={handleSaveTextChanges}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md shadow-emerald-950/40"
+              title="Step4에서 수정한 본문 내용을 영구 저장합니다"
+            >
+              {saveSuccessToast ? <Check className="w-3.5 h-3.5 text-white" /> : <Save className="w-3.5 h-3.5 text-white" />}
+              <span>{saveSuccessToast ? '수정 내용 저장 완료!' : '수정 내용 본문 저장'}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="text-[11px] text-zinc-400 bg-zinc-900/60 p-2 rounded-lg border border-zinc-800/80 flex items-center justify-between">
+          <span>💡 본문을 자유롭게 직접 타이핑 수정할 수 있으며, 문장을 마우스로 드래그하면 AI 부분 수정 툴바가 활성화됩니다.</span>
+          <span className="text-zinc-500">&lt;imagination&gt; 상상 &nbsp;|&nbsp; &lt;reminiscence&gt; 과거 회상</span>
         </div>
 
         <textarea
           ref={textareaRef}
           rows={18}
           value={content}
-          onChange={(e) => onUpdateContent(e.target.value)}
+          onChange={(e) => {
+            setContent(e.target.value);
+            onUpdateContent(e.target.value);
+          }}
           onSelect={handleSelectText}
           onMouseUp={handleSelectText}
           placeholder="Step 3에서 본문을 생성하거나, 여기에 직접 소설을 작성하세요..."
